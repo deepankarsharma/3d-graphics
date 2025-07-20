@@ -1,91 +1,136 @@
 #include <stdio.h>
-#include <stdbool.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <SDL2/SDL.h>
 
-// This is our game window
-SDL_Window* window = NULL;
-
-// This is our game renderer
-SDL_Renderer* renderer = NULL;
-
-// Boolean variable that controls whether our program is running.
-// We initialize it to false here because initially our program is not running.
 bool is_running = false;
 
+SDL_Window* window = NULL; 
+SDL_Renderer* renderer = NULL;
 
 uint32_t* color_buffer = NULL;
 SDL_Texture* color_buffer_texture = NULL;
 
-const int WINDOW_WIDTH=800;
-const int WINDOW_HEIGHT=800;
+int window_width = 800;
+int window_height = 600;
 
-// We call this function at the start of main.
-// This function is responsible for creating the window for our game.
-int initialize_window(void) {
+bool initialize_window(void) {
+    if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
+        fprintf(stderr, "Error initializing SDL.\n");
+        return false;
+    }
 
-  // SDL is the library that we are using for
-  // 1. creating windows
-  // 2. accepting user input
-  // 3. drawing items in the window
+    // Set width and height of the SDL window with the max screen resolution
+    SDL_DisplayMode display_mode;
+    SDL_GetCurrentDisplayMode(0, &display_mode);
+    window_width = display_mode.w;
+    window_height = display_mode.h;
 
+    // Create a SDL Window
+    window = SDL_CreateWindow(
+        NULL,
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        window_width,
+        window_height,
+        SDL_WINDOW_BORDERLESS
+    );
+    if (!window) {
+        fprintf(stderr, "Error creating SDL window.\n");
+        return false;
+    }
+    
+    // Create a SDL renderer
+    renderer = SDL_CreateRenderer(window, -1, 0);
+    if (!renderer) {
+        fprintf(stderr, "Error creating SDL renderer.\n");
+        return false;
+    }
 
-  // We are initializing the SDL library here.
-  // SDL_Init is an example of how C functions usually do error handling.
-  // When the function is able to do its tasks without any errors, it will return 0.
-  // When the function runs into some error, it will return some non-zero value.
-  // Sometimes users can use the non zero values to understand exactly what went wrong.
-  if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
-    fprintf(stderr," Error initializing SDL .\n");
-    return -1;
-  }
-
-  // Create a SDL window
-  window = SDL_CreateWindow(
-                            NULL,
-                            SDL_WINDOWPOS_CENTERED,
-                            SDL_WINDOWPOS_CENTERED,
-                            WINDOW_WIDTH,
-                            WINDOW_HEIGHT,
-                            SDL_WINDOW_BORDERLESS);
-
-  if (!window) {
-    fprintf(stderr, "Error creating SDL window. \n");
-    return -2;
-  }
-
-  renderer = SDL_CreateRenderer(window, -1, 0);
-  if (!renderer) {
-    fprintf(stderr, "Error creating SDL renderer. \n");
-    return -3;
-  }
-  
-  return 0;
+    return true;
 }
 
-
 void setup(void) {
-  color_buffer = (uint32_t*) malloc(sizeof(uint32_t) * WINDOW_WIDTH * WINDOW_HEIGHT);
+    // Allocate the required memory in bytes to hold the color buffer
+    color_buffer = (uint32_t*) malloc(sizeof(uint32_t) * window_width * window_height);
+    
+    // Creating a SDL texture that is used to display the color buffer
+    color_buffer_texture = SDL_CreateTexture(
+        renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        window_width,
+        window_height
+    );
 }
 
 void process_input(void) {
-  SDL_Event event;
-  SDL_PollEvent(&event);
-  
-  switch (event.type) {
-  case SDL_QUIT:
-    is_running = false;
-    break;
-  case SDL_KEYDOWN: 
-    if (event.key.keysym.sym == SDLK_ESCAPE) {
-      is_running = false;
+    SDL_Event event;
+    SDL_PollEvent(&event);
+
+    switch (event.type) {
+        case SDL_QUIT:
+            is_running = false;
+            break;
+        case SDL_KEYDOWN:
+            if (event.key.keysym.sym == SDLK_ESCAPE)
+                is_running = false;
+            break;
     }
-    break;
-  }
 }
 
 void update(void) {
+    // TODO:
+}
 
+void draw_grid(void) {
+    for (int y = 0; y < window_height; y += 10) {
+        for (int x = 0; x < window_width; x += 10) {
+            color_buffer[(window_width * y) + x] = 0xFF444444;
+        }
+    }
+}
+
+void draw_rect(int x, int y, int width, int height, uint32_t color) {
+    for (int i = 0; i < width; i++) {
+        for (int j = 0; j < height; j++) {
+            int current_x = x + i;
+            int current_y = y + j;
+            color_buffer[(window_width * current_y) + current_x] = color;
+        }
+    }
+}
+
+void render_color_buffer(void) {
+    SDL_UpdateTexture(
+        color_buffer_texture,
+        NULL,
+        color_buffer,
+        (int)(window_width * sizeof(uint32_t))
+    );
+    SDL_RenderCopy(renderer, color_buffer_texture, NULL, NULL);
+}
+
+void clear_color_buffer(uint32_t color) {
+    for (int y = 0; y < window_height; y++) {
+        for (int x = 0; x < window_width; x++) {
+            color_buffer[(window_width * y) + x] = color;
+        }
+    }
+}
+
+void render(void) {
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+
+    draw_grid();
+
+    draw_rect(300, 200, 300, 150, 0xFFFF00FF);
+
+    render_color_buffer();
+    clear_color_buffer(0xFF000000);
+
+    SDL_RenderPresent(renderer);
 }
 
 void destroy_window(void) {
@@ -95,47 +140,18 @@ void destroy_window(void) {
     SDL_Quit();
 }
 
-void render(void) {
-  // Set the color that the renderer will use for drawing.
-  SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-
-  // Actually draw using the currently active color.
-  SDL_RenderClear(renderer);
-
-  // Now copy the drawing from renderer into the window.
-  SDL_RenderPresent(renderer);
-}
-
-// When a C program starts, the first function
-// to execute is always called main
 int main(void) {
+    is_running = initialize_window();
 
-  // We are now in main because the user ran renderer
-  // hence we are running. so lets update the is_running
-  // variable and set it to the value returned by initialize_window.
-  is_running = (initialize_window() == 0);
+    setup();
 
-  if (!is_running) {
-    fprintf(stderr, "We were unable to initialize the window. Exiting");
-    return -1;
-  }
-  
-  setup();
+    while (is_running) {
+        process_input();
+        update();
+        render();
+    }
 
-  while (is_running) {
-    // Our game loop will look like this, no matter how simple or complex the game
+    destroy_window();
 
-    // First step: Accept user input
-    process_input();
-
-    // Second step: Update the variables based on user input
-    update();
-
-    // Third step: Now make a new drawing so that we can see updates
-    render();
-  }
-
-  destroy_window();
-  
-  return 0;
+    return 0;
 }
